@@ -1,0 +1,63 @@
+# =======================================
+# Python general
+# =======================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.log
+*.sqlite3
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# =======================================
+# Docker / build artifacts
+# =======================================
+*.tar
+*.img
+*.iso
+*.bak
+*.tmp
+*.swp
+*.swm
+*.swo
+*.old
+*.lock
+*.pid
+
+# =======================================
+# OS / editor specific
+# =======================================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.code-workspace
+
+# =======================================
+# Project-specific exclusions
+# =======================================
+commands
+config.json
+*.env
+*.yml
+*.yaml
+
+# =======================================
+# Logs and runtime data
+# =======================================
+logs/
+*.log
+nohup.out
+
+# =======================================
+# Ignore build and cache
+# =======================================
+build/
+dist/
+*.egg-info/
