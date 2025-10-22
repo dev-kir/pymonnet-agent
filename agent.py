@@ -2,7 +2,7 @@
 import psutil, docker, json, requests, socket, time
 
 # =============== CONFIGURATION ===============
-MANAGER_URL = "http://master:6969/metrics"   # change to your manager IP or DNS
+MANAGER_URL = "http://192.168.2.50:6969/metrics"
 INTERVAL = 3       # seconds between reports
 CPU_THRESHOLD = 85
 MEM_THRESHOLD = 80
