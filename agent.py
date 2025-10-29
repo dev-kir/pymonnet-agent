@@ -135,20 +135,9 @@ def get_top_containers(limit=3):
 
 
 # ---------------- Main Loop ----------------
-leader_ip = None
 while True:
     try:
-        # auto-detect leader if not known or unreachable
-        if not leader_ip:
-            leader_ip = get_leader_ip()
-            if leader_ip:
-                print(f"🧭 Detected leader at {leader_ip}")
-            else:
-                print("❌ No leader detected. Retrying...")
-                time.sleep(5)
-                continue
-
-        manager_url = f"http://{leader_ip}:6969/metrics"
+        manager_url = "http://pymonnet-server:6969/metrics"
         node_metrics = get_node_metrics()
         data = {"node": node_name, **node_metrics}
 
@@ -159,19 +148,14 @@ while True:
         else:
             data["status"] = "normal"
 
-        # send metrics
         resp = requests.post(manager_url, json=data, timeout=5)
         if resp.status_code != 200:
             print(f"⚠️ Manager responded {resp.status_code}: {resp.text}")
-            if resp.status_code in (403, 502):
-                print("🔄 Possible leader change. Clearing leader cache.")
-                leader_ip = None
         else:
-            print(f"[{time.strftime('%X')}] sent → {leader_ip}: {data}")
+            print(f"[{time.strftime('%X')}] sent → {manager_url}: {data}")
 
     except Exception as e:
         print(f"[{time.strftime('%X')}] error: {e}")
-        leader_ip = None  # force rediscovery next loop
 
     time.sleep(INTERVAL)
 # ---------------------------------------------------
