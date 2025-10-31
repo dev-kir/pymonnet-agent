@@ -44,24 +44,37 @@ if not NET_IFACE:
 else:
     print(f"🌐 Using specified interface: {NET_IFACE}")
 
-prev_rx, prev_tx = 0, 0
+prev_rx, prev_tx = None, None
+prev_ts = None
 
 # ---------------- Metrics Collection ----------------
 def get_node_metrics():
     """Collect CPU, memory, and network traffic (Mbps)."""
-    global prev_rx, prev_tx
+    global prev_rx, prev_tx, prev_ts, NET_IFACE
     cpu = psutil.cpu_percent(interval=1)
     mem = psutil.virtual_memory().percent
 
-    net = psutil.net_io_counters(pernic=True).get(NET_IFACE)
+    net_all = psutil.net_io_counters(pernic=True)
+    net = net_all.get(NET_IFACE)
+
+    if net is None:
+        fallback = detect_active_interface()
+        if fallback and fallback != NET_IFACE:
+            print(f"🔁 Switching network interface to: {fallback}")
+            NET_IFACE = fallback
+            net = net_all.get(NET_IFACE)
+            prev_rx = prev_tx = prev_ts = None
+
     if net:
         rx, tx = net.bytes_recv, net.bytes_sent
-        if prev_rx == 0 and prev_tx == 0:
-            net_in, net_out = 0.0, 0.0
+        now = time.time()
+        if prev_rx is None or prev_tx is None or prev_ts is None:
+            net_in = net_out = 0.0
         else:
-            net_in = (rx - prev_rx) * 8 / (INTERVAL * 1024 * 1024)
-            net_out = (tx - prev_tx) * 8 / (INTERVAL * 1024 * 1024)
-        prev_rx, prev_tx = rx, tx
+            elapsed = max(now - prev_ts, 1e-3)
+            net_in = (rx - prev_rx) * 8 / (elapsed * 1024 * 1024)
+            net_out = (tx - prev_tx) * 8 / (elapsed * 1024 * 1024)
+        prev_rx, prev_tx, prev_ts = rx, tx, now
     else:
         net_in = net_out = 0.0
 
