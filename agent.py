@@ -72,8 +72,13 @@ def get_node_metrics():
             net_in = net_out = 0.0
         else:
             elapsed = max(now - prev_ts, 1e-3)
-            net_in = (rx - prev_rx) * 8 / (elapsed * 1024 * 1024)
-            net_out = (tx - prev_tx) * 8 / (elapsed * 1024 * 1024)
+            diff_rx = rx - prev_rx
+            diff_tx = tx - prev_tx
+            if diff_rx < 0 or diff_tx < 0:
+                # interface counters reset; skip this interval
+                diff_rx = diff_tx = 0
+            net_in = (diff_rx * 8) / (elapsed * 1024 * 1024)
+            net_out = (diff_tx * 8) / (elapsed * 1024 * 1024)
         prev_rx, prev_tx, prev_ts = rx, tx, now
     else:
         net_in = net_out = 0.0
@@ -81,8 +86,8 @@ def get_node_metrics():
     return {
         "cpu": round(cpu, 2),
         "mem": round(mem, 2),
-        "net_in": round(net_in, 2),
-        "net_out": round(net_out, 2)
+        "net_in": round(max(net_in, 0.0), 4),
+        "net_out": round(max(net_out, 0.0), 4)
     }
 
 # ---------------- Main Loop ----------------
