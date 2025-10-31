@@ -6,25 +6,27 @@ INTERVAL = int(os.getenv("INTERVAL", 3))       # seconds between reports
 CPU_THRESHOLD = int(os.getenv("CPU_THRESHOLD", 85))
 MEM_THRESHOLD = int(os.getenv("MEM_THRESHOLD", 80))
 NET_IFACE = os.getenv("NET_IFACE")  # can be passed via environment variable
+MANAGER_URL = "http://pymonnet-server:6969/metrics"
 # =============================================
 
 psutil.PROCFS_PATH = "/host/proc"
 docker_client = docker.from_env()
 
-# Detect actual Swarm node hostname
-def get_real_node_name():
+# ---------------- Node Identity ----------------
+def get_node_info():
+    """Detect real Swarm node name + role."""
     try:
         info = docker_client.info()
-        return info.get("Name", socket.gethostname())
+        name = info.get("Name", socket.gethostname())
+        role = "manager" if info.get("Swarm", {}).get("ControlAvailable", False) else "worker"
+        return name, role
     except Exception:
-        return socket.gethostname()
+        return socket.gethostname(), "unknown"
 
-node_name = get_real_node_name()
+node_name, node_role = get_node_info()
+print(f"🖥️ Node detected → {node_name} ({node_role})")
 
-prev_rx, prev_tx = 0, 0
-
-
-# ---------------- Network Interface Detection ----------------
+# ---------------- Network Interface ----------------
 def detect_active_interface():
     """Auto-detect the most active non-loopback interface."""
     try:
@@ -36,13 +38,13 @@ def detect_active_interface():
     except Exception as e:
         print(f"⚠️ Failed to detect active interface: {e}")
     return "eth0"
-# ---------------------------------------------------------------
 
 if not NET_IFACE:
     NET_IFACE = detect_active_interface()
 else:
     print(f"🌐 Using specified interface: {NET_IFACE}")
 
+prev_rx, prev_tx = 0, 0
 
 # ---------------- Metrics Collection ----------------
 def get_node_metrics():
@@ -70,22 +72,20 @@ def get_node_metrics():
         "net_out": round(net_out, 2)
     }
 
-
 # ---------------- Main Loop ----------------
 while True:
     try:
-        manager_url = "http://pymonnet-server:6969/metrics"
-        node_metrics = get_node_metrics()
-        data = {"node": node_name, **node_metrics}
+        metrics = get_node_metrics()
+        data = {
+            "node": node_name,
+            "role": node_role,
+            **metrics,
+            "status": "high_load" if (metrics["cpu"] > CPU_THRESHOLD or metrics["mem"] > MEM_THRESHOLD) else "normal"
+        }
 
-        if (node_metrics["cpu"] > CPU_THRESHOLD or node_metrics["mem"] > MEM_THRESHOLD):
-            data["status"] = "high_load"
-        else:
-            data["status"] = "normal"
-
-        resp = requests.post(manager_url, json=data, timeout=5)
+        resp = requests.post(MANAGER_URL, json=data, timeout=5)
         if resp.status_code == 200:
-            print(f"[{time.strftime('%X')}] sent → {manager_url}: {data}")
+            print(f"[{time.strftime('%X')}] ✅ Sent → {MANAGER_URL}: {data}")
         else:
             print(f"⚠️ Manager responded {resp.status_code}: {resp.text}")
 
