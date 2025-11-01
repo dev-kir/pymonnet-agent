@@ -9,7 +9,14 @@ CPU_ALERT_THRESHOLD = int(os.getenv("CPU_ALERT_THRESHOLD", 70))
 MEM_ALERT_THRESHOLD = int(os.getenv("MEM_ALERT_THRESHOLD", 80))
 ALERT_WINDOW = int(os.getenv("ALERT_WINDOW", 30))  # seconds to keep scanning containers
 NET_IFACE = os.getenv("NET_IFACE")  # can be passed via environment variable
-MANAGER_URL = "http://pymonnet-server:6969/metrics"
+MANAGER_METRICS_URL = os.getenv("MANAGER_URL", "http://pymonnet-server:6969/metrics")
+MANAGER_BASE_URL = os.getenv("MANAGER_BASE_URL")
+if not MANAGER_BASE_URL:
+    if MANAGER_METRICS_URL.endswith("/metrics"):
+        MANAGER_BASE_URL = MANAGER_METRICS_URL[: -len("/metrics")]
+    else:
+        MANAGER_BASE_URL = MANAGER_METRICS_URL.rsplit("/", 1)[0]
+MANAGER_CONTAINER_URL = f"{MANAGER_BASE_URL}/container-metrics"
 # =============================================
 
 psutil.PROCFS_PATH = "/host/proc"
@@ -194,9 +201,8 @@ def monitor_containers_if_high_load():
     if not payload:
         return
 
-    url = f"{MANAGER_URL}/container-metrics"
     try:
-        resp = requests.post(url, json=payload, timeout=5)
+        resp = requests.post(MANAGER_CONTAINER_URL, json=payload, timeout=5)
         if resp.status_code != 200:
             print(f"⚠️ Manager container metrics response {resp.status_code}: {resp.text}")
     except Exception as err:
@@ -221,9 +227,9 @@ while True:
         if now_ts < alert_active_until:
             monitor_containers_if_high_load()
 
-        resp = requests.post(MANAGER_URL, json=data, timeout=5)
+        resp = requests.post(MANAGER_METRICS_URL, json=data, timeout=5)
         if resp.status_code == 200:
-            print(f"[{time.strftime('%X')}] ✅ Sent → {MANAGER_URL}: {data}")
+            print(f"[{time.strftime('%X')}] ✅ Sent → {MANAGER_METRICS_URL}: {data}")
         else:
             print(f"⚠️ Manager responded {resp.status_code}: {resp.text}")
 
