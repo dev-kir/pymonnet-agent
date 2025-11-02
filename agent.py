@@ -61,46 +61,86 @@ container_prev_net = {}
 alert_active_until = 0
 
 # ---------------- Metrics Collection ----------------
+# def get_node_metrics():
+#     """Collect CPU, memory, and network traffic (Mbps)."""
+#     global prev_rx, prev_tx, prev_ts, NET_IFACE
+#     cpu = psutil.cpu_percent(interval=1)
+#     mem = psutil.virtual_memory().percent
+
+#     net_all = psutil.net_io_counters(pernic=True)
+#     net = net_all.get(NET_IFACE)
+
+#     if net is None:
+#         fallback = detect_active_interface()
+#         if fallback and fallback != NET_IFACE:
+#             print(f"🔁 Switching network interface to: {fallback}")
+#             NET_IFACE = fallback
+#             net = net_all.get(NET_IFACE)
+#             prev_rx = prev_tx = prev_ts = None
+
+#     if net:
+#         rx, tx = net.bytes_recv, net.bytes_sent
+#         now = time.time()
+#         if prev_rx is None or prev_tx is None or prev_ts is None:
+#             net_in = net_out = 0.0
+#         else:
+#             elapsed = max(now - prev_ts, 1e-3)
+#             diff_rx = rx - prev_rx
+#             diff_tx = tx - prev_tx
+#             if diff_rx < 0 or diff_tx < 0:
+#                 # interface counters reset; skip this interval
+#                 diff_rx = diff_tx = 0
+#             net_in = (diff_rx * 8) / (elapsed * 1024 * 1024)
+#             net_out = (diff_tx * 8) / (elapsed * 1024 * 1024)
+#         prev_rx, prev_tx, prev_ts = rx, tx, now
+#     else:
+#         net_in = net_out = 0.0
+
+#     return {
+#         "cpu": round(cpu, 2),
+#         "mem": round(mem, 2),
+#         "net_in": round(max(net_in, 0.0), 4),
+#         "net_out": round(max(net_out, 0.0), 4)
+#     }
+
 def get_node_metrics():
-    """Collect CPU, memory, and network traffic (Mbps)."""
+    """Collect CPU, memory, and network traffic (Mbps) using host NIC stats."""
     global prev_rx, prev_tx, prev_ts, NET_IFACE
+
+    # Basic CPU + memory
     cpu = psutil.cpu_percent(interval=1)
     mem = psutil.virtual_memory().percent
 
-    net_all = psutil.net_io_counters(pernic=True)
-    net = net_all.get(NET_IFACE)
+    # Try to read host-level NIC statistics
+    iface = NET_IFACE or "eth0"
+    try:
+        with open(f"/host/sys/class/net/{iface}/statistics/rx_bytes") as f:
+            rx = int(f.read())
+        with open(f"/host/sys/class/net/{iface}/statistics/tx_bytes") as f:
+            tx = int(f.read())
+    except Exception as e:
+        print(f"⚠️ Failed to read host NIC stats for {iface}: {e}")
+        rx = tx = 0
 
-    if net is None:
-        fallback = detect_active_interface()
-        if fallback and fallback != NET_IFACE:
-            print(f"🔁 Switching network interface to: {fallback}")
-            NET_IFACE = fallback
-            net = net_all.get(NET_IFACE)
-            prev_rx = prev_tx = prev_ts = None
-
-    if net:
-        rx, tx = net.bytes_recv, net.bytes_sent
-        now = time.time()
-        if prev_rx is None or prev_tx is None or prev_ts is None:
-            net_in = net_out = 0.0
-        else:
-            elapsed = max(now - prev_ts, 1e-3)
-            diff_rx = rx - prev_rx
-            diff_tx = tx - prev_tx
-            if diff_rx < 0 or diff_tx < 0:
-                # interface counters reset; skip this interval
-                diff_rx = diff_tx = 0
-            net_in = (diff_rx * 8) / (elapsed * 1024 * 1024)
-            net_out = (diff_tx * 8) / (elapsed * 1024 * 1024)
-        prev_rx, prev_tx, prev_ts = rx, tx, now
-    else:
+    now = time.time()
+    if prev_rx is None or prev_tx is None or prev_ts is None:
         net_in = net_out = 0.0
+    else:
+        elapsed = max(now - prev_ts, 1e-3)
+        diff_rx = rx - prev_rx
+        diff_tx = tx - prev_tx
+        if diff_rx < 0 or diff_tx < 0:
+            diff_rx = diff_tx = 0
+        net_in = (diff_rx * 8) / (elapsed * 1024 * 1024)
+        net_out = (diff_tx * 8) / (elapsed * 1024 * 1024)
+
+    prev_rx, prev_tx, prev_ts = rx, tx, now
 
     return {
         "cpu": round(cpu, 2),
         "mem": round(mem, 2),
-        "net_in": round(max(net_in, 0.0), 4),
-        "net_out": round(max(net_out, 0.0), 4)
+        "net_in": round(max(net_in, 0.0), 3),
+        "net_out": round(max(net_out, 0.0), 3),
     }
 
 
