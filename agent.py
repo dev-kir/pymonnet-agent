@@ -2,7 +2,8 @@
 import psutil, docker, json, requests, socket, time, subprocess, os
 
 # =============== CONFIGURATION ===============
-INTERVAL = int(os.getenv("INTERVAL", 3))       # seconds between reports
+# INTERVAL = int(os.getenv("INTERVAL", 3))       # seconds between reports
+INTERVAL = int(os.getenv("INTERVAL", 0.25))       # update new interval for real time and more precise
 CPU_THRESHOLD = int(os.getenv("CPU_THRESHOLD", 85))
 MEM_THRESHOLD = int(os.getenv("MEM_THRESHOLD", 80))
 CPU_ALERT_THRESHOLD = int(os.getenv("CPU_ALERT_THRESHOLD", 70))
@@ -108,7 +109,8 @@ def get_node_metrics():
     global prev_rx, prev_tx, prev_ts, NET_IFACE
 
     # Basic CPU + memory
-    cpu = psutil.cpu_percent(interval=1)
+    # cpu = psutil.cpu_percent(interval=1)
+    cpu = psutil.cpu_percent(interval=None)
     mem = psutil.virtual_memory().percent
 
     # Try to read host-level NIC statistics
@@ -307,7 +309,9 @@ while True:
 
         resp = requests.post(MANAGER_METRICS_URL, json=data, timeout=5)
         if resp.status_code == 200:
-            print(f"[{time.strftime('%X')}] ✅ Sent → {MANAGER_METRICS_URL}: {data}")
+			# print once per second (4Hz sampling = 4x per sec)
+            if int(time.time() * 4) % 4 == 0:
+                print(f"[{time.strftime('%X')}] ✅ Sent → {MANAGER_METRICS_URL}: {data}")
         else:
             print(f"⚠️ Manager responded {resp.status_code}: {resp.text}")
 
