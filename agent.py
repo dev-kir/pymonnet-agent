@@ -130,13 +130,52 @@ def calculate_container_memory(stats):
     return 0.0
 
 
+# def calculate_container_network(container_id, stats, now):
+#     """Compute container network throughput in Mbps using previous snapshot."""
+#     networks = stats.get("networks") or {}
+#     total_rx = total_tx = 0
+#     for iface_stats in networks.values():
+#         total_rx += iface_stats.get("rx_bytes", 0)
+#         total_tx += iface_stats.get("tx_bytes", 0)
+
+#     prev = container_prev_net.get(container_id)
+#     if not prev:
+#         container_prev_net[container_id] = {"rx": total_rx, "tx": total_tx, "time": now}
+#         return 0.0, 0.0
+
+#     elapsed = max(now - prev["time"], 1e-3)
+#     diff_rx = total_rx - prev["rx"]
+#     diff_tx = total_tx - prev["tx"]
+#     if diff_rx < 0:
+#         diff_rx = 0
+#     if diff_tx < 0:
+#         diff_tx = 0
+
+#     container_prev_net[container_id] = {"rx": total_rx, "tx": total_tx, "time": now}
+
+#     net_in = (diff_rx * 8) / (elapsed * 1024 * 1024)
+#     net_out = (diff_tx * 8) / (elapsed * 1024 * 1024)
+#     return round(max(net_in, 0.0), 3), round(max(net_out, 0.0), 3)
+
 def calculate_container_network(container_id, stats, now):
-    """Compute container network throughput in Mbps using previous snapshot."""
+    """Compute container network throughput in Mbps using previous snapshot, fallback to host NIC if needed."""
     networks = stats.get("networks") or {}
     total_rx = total_tx = 0
     for iface_stats in networks.values():
         total_rx += iface_stats.get("rx_bytes", 0)
         total_tx += iface_stats.get("tx_bytes", 0)
+
+    # fallback if Docker stats network empty
+    if total_rx == 0 and total_tx == 0:
+        try:
+            iface = os.getenv("NET_IFACE", "eth0")
+            net_all = psutil.net_io_counters(pernic=True)
+            net = net_all.get(iface)
+            if net:
+                total_rx = net.bytes_recv
+                total_tx = net.bytes_sent
+        except Exception as e:
+            print(f"⚠️ Fallback net read failed: {e}")
 
     prev = container_prev_net.get(container_id)
     if not prev:
@@ -156,7 +195,6 @@ def calculate_container_network(container_id, stats, now):
     net_in = (diff_rx * 8) / (elapsed * 1024 * 1024)
     net_out = (diff_tx * 8) / (elapsed * 1024 * 1024)
     return round(max(net_in, 0.0), 3), round(max(net_out, 0.0), 3)
-
 
 def monitor_containers_if_high_load():
     """Collect per-container metrics when node is under high load and push to server."""
