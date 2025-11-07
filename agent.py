@@ -104,24 +104,38 @@ alert_active_until = 0
 #         "net_out": round(max(net_out, 0.0), 4)
 #     }
 
+def _read_sysfs_bytes(iface, direction):
+    path = f"/host/sys/class/net/{iface}/statistics/{direction}_bytes"
+    try:
+        with open(path) as f:
+            return int(f.read())
+    except Exception:
+        return None
+
+
 def get_node_metrics():
-    """Collect CPU, memory, and network traffic (Mbps) using host NIC stats."""
+    """Collect CPU, memory, and network traffic (Mbps)."""
     global prev_rx, prev_tx, prev_ts, NET_IFACE
 
-    # Basic CPU + memory
-    # cpu = psutil.cpu_percent(interval=1)
     cpu = psutil.cpu_percent(interval=None)
     mem = psutil.virtual_memory().percent
 
-    # Try to read host-level NIC statistics
     iface = NET_IFACE or "eth0"
+    rx = tx = None
+
     try:
-        with open(f"/host/sys/class/net/{iface}/statistics/rx_bytes") as f:
-            rx = int(f.read())
-        with open(f"/host/sys/class/net/{iface}/statistics/tx_bytes") as f:
-            tx = int(f.read())
+        net = psutil.net_io_counters(pernic=True).get(iface)
+        if net:
+            rx, tx = net.bytes_recv, net.bytes_sent
     except Exception as e:
-        print(f"⚠️ Failed to read host NIC stats for {iface}: {e}")
+        print(f"⚠️ psutil net stats failed for {iface}: {e}")
+
+    if rx is None or tx is None:
+        rx = _read_sysfs_bytes(iface, "rx")
+        tx = _read_sysfs_bytes(iface, "tx")
+
+    if rx is None or tx is None:
+        print(f"⚠️ Unable to determine NIC counters for {iface}; reporting 0 Mbps")
         rx = tx = 0
 
     now = time.time()
@@ -131,8 +145,10 @@ def get_node_metrics():
         elapsed = max(now - prev_ts, 1e-3)
         diff_rx = rx - prev_rx
         diff_tx = tx - prev_tx
-        if diff_rx < 0 or diff_tx < 0:
-            diff_rx = diff_tx = 0
+        if diff_rx < 0:
+            diff_rx = 0
+        if diff_tx < 0:
+            diff_tx = 0
         net_in = (diff_rx * 8) / (elapsed * 1024 * 1024)
         net_out = (diff_tx * 8) / (elapsed * 1024 * 1024)
 
@@ -141,8 +157,8 @@ def get_node_metrics():
     return {
         "cpu": round(cpu, 2),
         "mem": round(mem, 2),
-        "net_in": round(max(net_in, 0.0), 3),
-        "net_out": round(max(net_out, 0.0), 3),
+        "net_in": round(max(net_in, 0.0), 4),
+        "net_out": round(max(net_out, 0.0), 4),
     }
 
 
