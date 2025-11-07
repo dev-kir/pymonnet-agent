@@ -300,11 +300,14 @@ while True:
             "status": "high_load" if (metrics["cpu"] > CPU_THRESHOLD or metrics["mem"] > MEM_THRESHOLD) else "normal"
         }
 
-        high_load = metrics["cpu"] > CPU_ALERT_THRESHOLD or metrics["mem"] > MEM_ALERT_THRESHOLD
-        if high_load:
-            alert_active_until = now_ts + ALERT_WINDOW
+        # high_load = metrics["cpu"] > CPU_ALERT_THRESHOLD or metrics["mem"] > MEM_ALERT_THRESHOLD
+        # if high_load:
+        #     alert_active_until = now_ts + ALERT_WINDOW
 
-        if now_ts < alert_active_until:
+        # if now_ts < alert_active_until:
+        #     monitor_containers_if_high_load()
+        
+        if metrics["cpu"] > CPU_THRESHOLD or metrics["mem"] > MEM_THRESHOLD:
             monitor_containers_if_high_load()
 
         resp = requests.post(MANAGER_METRICS_URL, json=data, timeout=5)
