@@ -4,8 +4,8 @@ import psutil, docker, json, requests, socket, time, subprocess, os
 # =============== CONFIGURATION ===============
 # INTERVAL = int(os.getenv("INTERVAL", 3))       # seconds between reports
 INTERVAL = int(os.getenv("INTERVAL", 0.25))       # update new interval for real time and more precise
-CPU_THRESHOLD = int(os.getenv("CPU_THRESHOLD", 85))
-MEM_THRESHOLD = int(os.getenv("MEM_THRESHOLD", 80))
+CPU_THRESHOLD = int(os.getenv("CPU_THRESHOLD", 45))
+MEM_THRESHOLD = int(os.getenv("MEM_THRESHOLD", 55))
 CPU_ALERT_THRESHOLD = int(os.getenv("CPU_ALERT_THRESHOLD", 70))
 MEM_ALERT_THRESHOLD = int(os.getenv("MEM_ALERT_THRESHOLD", 80))
 ALERT_WINDOW = int(os.getenv("ALERT_WINDOW", 30))  # seconds to keep scanning containers
